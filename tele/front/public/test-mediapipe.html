@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MediaPipe Face Mesh Test</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background-color: #f0f0f0;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background-color: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #333;
+    }
+    .video-container {
+      position: relative;
+      margin-top: 20px;
+    }
+    video, canvas {
+      width: 100%;
+      max-width: 640px;
+      border-radius: 8px;
+    }
+    canvas {
+      position: absolute;
+      left: 0;
+      top: 0;
+    }
+    .controls {
+      margin-top: 20px;
+    }
+    button {
+      background-color: #4CAF50;
+      border: none;
+      color: white;
+      padding: 10px 20px;
+      text-align: center;
+      text-decoration: none;
+      display: inline-block;
+      font-size: 16px;
+      margin: 4px 2px;
+      cursor: pointer;
+      border-radius: 4px;
+    }
+    .status {
+      margin-top: 20px;
+      padding: 10px;
+      background-color: #f8f8f8;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>MediaPipe Face Mesh Test</h1>
+    <p>This page tests if MediaPipe Face Mesh is working correctly in your browser.</p>
+    
+    <div class="video-container">
+      <video id="video" playsinline></video>
+      <canvas id="output-canvas"></canvas>
+    </div>
+    
+    <div class="controls">
+      <button id="start">Start</button>
+      <button id="stop">Stop</button>
+    </div>
+    
+    <div class="status" id="status">
+      Status: Waiting to start
+    </div>
+  </div>
+
+  <!-- Load MediaPipe Face Mesh from CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/face_mesh.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const videoElement = document.getElementById('video');
+      const canvasElement = document.getElementById('output-canvas');
+      const canvasCtx = canvasElement.getContext('2d');
+      const statusElement = document.getElementById('status');
+      
+      let faceMesh;
+      let camera;
+      let isRunning = false;
+      
+      // Initialize MediaPipe Face Mesh
+      function initFaceMesh() {
+        statusElement.textContent = 'Status: Initializing MediaPipe Face Mesh...';
+        
+        faceMesh = new FaceMesh({
+          locateFile: (file) => {
+            return `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/${file}`;
+          }
+        });
+        
+        faceMesh.setOptions({
+          maxNumFaces: 1,
+          refineLandmarks: true,
+          minDetectionConfidence: 0.5,
+          minTrackingConfidence: 0.5
+        });
+        
+        faceMesh.onResults(onResults);
+        
+        statusElement.textContent = 'Status: MediaPipe Face Mesh initialized';
+      }
+      
+      // Handle Face Mesh results
+      function onResults(results) {
+        // Set canvas dimensions to match video
+        canvasElement.width = videoElement.videoWidth;
+        canvasElement.height = videoElement.videoHeight;
+        
+        // Clear canvas
+        canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+        
+        // Draw video frame
+        canvasCtx.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
+        
+        if (results.multiFaceLandmarks) {
+          for (const landmarks of results.multiFaceLandmarks) {
+            // Draw face mesh
+            drawConnectors(canvasCtx, landmarks, FACEMESH_TESSELATION, {color: '#C0C0C070', lineWidth: 1});
+            drawConnectors(canvasCtx, landmarks, FACEMESH_RIGHT_EYE, {color: '#FF3030'});
+            drawConnectors(canvasCtx, landmarks, FACEMESH_LEFT_EYE, {color: '#30FF30'});
+            drawConnectors(canvasCtx, landmarks, FACEMESH_FACE_OVAL, {color: '#E0E0E0'});
+            drawConnectors(canvasCtx, landmarks, FACEMESH_LIPS, {color: '#E0E0E0'});
+            
+            // Draw landmarks
+            for (let i = 0; i < landmarks.length; i++) {
+              const x = landmarks[i].x * canvasElement.width;
+              const y = landmarks[i].y * canvasElement.height;
+              
+              canvasCtx.beginPath();
+              canvasCtx.arc(x, y, 1, 0, 2 * Math.PI);
+              canvasCtx.fillStyle = 'white';
+              canvasCtx.fill();
+            }
+            
+            statusElement.textContent = 'Status: Face detected with ' + landmarks.length + ' landmarks';
+          }
+        } else {
+          statusElement.textContent = 'Status: No face detected';
+        }
+      }
+      
+      // Start camera and face mesh
+      function startFaceMesh() {
+        if (isRunning) return;
+        
+        statusElement.textContent = 'Status: Starting camera...';
+        
+        // Initialize camera
+        camera = new Camera(videoElement, {
+          onFrame: async () => {
+            await faceMesh.send({image: videoElement});
+          },
+          width: 640,
+          height: 480
+        });
+        
+        camera.start()
+          .then(() => {
+            isRunning = true;
+            statusElement.textContent = 'Status: Camera started, detecting faces...';
+          })
+          .catch(error => {
+            statusElement.textContent = 'Error: ' + error.message;
+            console.error('Error starting camera:', error);
+          });
+      }
+      
+      // Stop camera and face mesh
+      function stopFaceMesh() {
+        if (!isRunning) return;
+        
+        if (camera) {
+          camera.stop();
+        }
+        
+        isRunning = false;
+        statusElement.textContent = 'Status: Stopped';
+      }
+      
+      // Set up event listeners
+      document.getElementById('start').addEventListener('click', function() {
+        initFaceMesh();
+        startFaceMesh();
+      });
+      
+      document.getElementById('stop').addEventListener('click', stopFaceMesh);
+    });
+  </script>
+</body>
+</html>

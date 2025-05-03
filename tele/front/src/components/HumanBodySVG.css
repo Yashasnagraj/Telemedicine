@@ -1,0 +1,42 @@
+.human-body-svg-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
+.human-body-svg {
+  width: 200px;
+  height: 400px;
+  margin-bottom: 1rem;
+}
+
+.pain-descriptions {
+  width: 100%;
+  max-width: 300px;
+  margin-top: 1rem;
+}
+
+.pain-description-item {
+  display: flex;
+  align-items: center;
+  margin-bottom: 0.5rem;
+  font-size: 0.875rem;
+}
+
+.pain-indicator {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  margin-right: 0.5rem;
+}
+
+.pain-region {
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.pain-detail {
+  margin-left: 0.25rem;
+  color: #a0aec0;
+}
